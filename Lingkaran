@@ -1,0 +1,231 @@
+local player = game.Players.LocalPlayer
+local screenGui = script.Parent
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- ============ FUNGSI BANTU: BUAT INPUT DENGAN TOMBOL +/- ============
+local function buatInput(parent, namaLabel, defaultValue, stepNaik)
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, -10, 0, 16)
+	label.Position = UDim2.new(0, 5, 0, 0)
+	label.BackgroundTransparency = 1
+	label.Text = namaLabel
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextSize = 13
+	label.Parent = parent
+
+	local row = Instance.new("Frame")
+	row.Size = UDim2.new(1, -10, 0, 28)
+	row.Position = UDim2.new(0, 5, 0, 0)
+	row.BackgroundTransparency = 1
+	row.Parent = parent
+
+	local btnMin = Instance.new("TextButton")
+	btnMin.Size = UDim2.new(0, 26, 1, 0)
+	btnMin.Text = "-"
+	btnMin.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+	btnMin.TextColor3 = Color3.new(1, 1, 1)
+	btnMin.Parent = row
+
+	local textBox = Instance.new("TextBox")
+	textBox.Size = UDim2.new(1, -60, 1, 0)
+	textBox.Position = UDim2.new(0, 30, 0, 0)
+	textBox.Text = tostring(defaultValue)
+	textBox.TextSize = 13
+	textBox.Parent = row
+
+	local btnPlus = Instance.new("TextButton")
+	btnPlus.Size = UDim2.new(0, 26, 1, 0)
+	btnPlus.Position = UDim2.new(1, -26, 0, 0)
+	btnPlus.Text = "+"
+	btnPlus.BackgroundColor3 = Color3.fromRGB(60, 170, 80)
+	btnPlus.TextColor3 = Color3.new(1, 1, 1)
+	btnPlus.Parent = row
+
+	btnPlus.MouseButton1Click:Connect(function()
+		local nilai = tonumber(textBox.Text) or 0
+		textBox.Text = tostring(nilai + stepNaik)
+	end)
+	btnMin.MouseButton1Click:Connect(function()
+		local nilai = tonumber(textBox.Text) or 0
+		textBox.Text = tostring(nilai - stepNaik)
+	end)
+
+	return textBox
+end
+
+-- ============ FUNGSI BANTU: GAMBAR GARIS ANTAR 2 TITIK ============
+local function buatGaris(posA, posB, folder, warna)
+	local jarak = (posA - posB).Magnitude
+	local garis = Instance.new("Part")
+	garis.Anchored = true
+	garis.CanCollide = false
+	garis.Material = Enum.Material.Neon
+	garis.BrickColor = warna
+	garis.Size = Vector3.new(0.2, 0.2, jarak)
+	garis.CFrame = CFrame.new(posA, posB) * CFrame.new(0, 0, -jarak / 2)
+	garis.Parent = folder
+end
+
+-- ============ FUNGSI UTAMA: GAMBAR LINGKARAN + GARIS PENGHUBUNG ============
+local function gambarLingkaran(xc, yc, r, dTheta, ukuran, namaFolder, warnaTitik, warnaGaris)
+	local folderLama = workspace:FindFirstChild(namaFolder)
+	if folderLama then
+		folderLama:Destroy()
+	end
+
+	local folder = Instance.new("Folder")
+	folder.Name = namaFolder
+	folder.Parent = workspace
+
+	local thetaAkhir = 2 * math.pi
+	local titikSebelumnya = nil
+	local titikPertama = nil
+	local titikTerakhir = nil
+
+	print("=== Mulai Membangkitkan " .. namaFolder .. " ===")
+
+	-- ITERASI: titik terakhir dipaksa tepat di theta = 2π
+	local jumlahTitik = math.floor(thetaAkhir / dTheta)
+	for i = 0, jumlahTitik do
+		local theta = i * dTheta
+		if theta > thetaAkhir then
+			theta = thetaAkhir
+		end
+
+		-- KALKULASI
+		local x = xc + r * math.cos(theta)
+		local z = yc + r * math.sin(theta)
+		local posTitik = Vector3.new(x, 2, z)
+
+		-- RENDERING TITIK
+		local part = Instance.new("Part")
+		part.Shape = Enum.PartType.Ball
+		part.Anchored = true
+		part.CanCollide = false
+		part.Parent = folder
+
+		if theta == 0 then
+			part.Size = Vector3.new(ukuran * 2, ukuran * 2, ukuran * 2)
+			part.BrickColor = BrickColor.new("Bright red")
+			print(">>> TITIK AWAL: θ=0.00 | x=" .. string.format("%.2f", x) .. " | z=" .. string.format("%.2f", z))
+			titikPertama = posTitik
+		elseif theta == thetaAkhir then
+			part.Size = Vector3.new(ukuran * 2, ukuran * 2, ukuran * 2)
+			part.BrickColor = BrickColor.new("Bright green")
+			print(">>> TITIK AKHIR: θ=" .. string.format("%.2f", theta) .. " | x=" .. string.format("%.2f", x) .. " | z=" .. string.format("%.2f", z))
+		else
+			part.Size = Vector3.new(ukuran, ukuran, ukuran)
+			part.BrickColor = warnaTitik
+			print(string.format("θ=%.2f | x=%.2f | z=%.2f", theta, x, z))
+		end
+
+		part.Position = posTitik
+
+		-- RENDERING GARIS PENGHUBUNG (antar titik berurutan)
+		if titikSebelumnya ~= nil then
+			buatGaris(titikSebelumnya, posTitik, folder, warnaGaris)
+		end
+		titikSebelumnya = posTitik
+		titikTerakhir = posTitik
+
+		task.wait(0.03)
+	end
+
+	-- Garis penutup: titik akhir (hijau) -> titik awal (merah)
+	if titikPertama ~= nil and titikTerakhir ~= nil then
+		buatGaris(titikTerakhir, titikPertama, folder, warnaGaris)
+		print(">>> Garis penutup ditambahkan (titik akhir → titik awal)")
+	end
+
+	print("=== " .. namaFolder .. " Selesai Digambar! ===")
+end
+
+-- ============ BUAT FRAME PANEL UTAMA ============
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 520, 0, 300)
+frame.Position = UDim2.new(0, 20, 0, 20)
+frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+frame.Parent = screenGui
+
+-- ===== PANEL KIRI: LINGKARAN 1 =====
+local panel1 = Instance.new("Frame")
+panel1.Size = UDim2.new(0.5, -10, 1, -10)
+panel1.Position = UDim2.new(0, 5, 0, 5)
+panel1.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+panel1.Parent = frame
+
+local layout1 = Instance.new("UIListLayout")
+layout1.Padding = UDim.new(0, 4)
+layout1.Parent = panel1
+
+local judul1 = Instance.new("TextLabel")
+judul1.Size = UDim2.new(1, -10, 0, 22)
+judul1.Position = UDim2.new(0, 5, 0, 0)
+judul1.BackgroundTransparency = 1
+judul1.Text = "LINGKARAN 1"
+judul1.TextColor3 = Color3.fromRGB(100, 180, 255)
+judul1.TextSize = 15
+judul1.Font = Enum.Font.SourceSansBold
+judul1.Parent = panel1
+
+local xc1 = buatInput(panel1, "Pusat X", -100, 5)
+local yc1 = buatInput(panel1, "Pusat Z", -125, 5)
+local r1 = buatInput(panel1, "Jari-jari", 15, 1)
+local dTheta1 = buatInput(panel1, "Delta Theta", 0.2, 0.05)
+local ukuran1 = buatInput(panel1, "Ukuran Titik", 1, 0.5)
+
+-- ===== PANEL KANAN: LINGKARAN 2 =====
+local panel2 = Instance.new("Frame")
+panel2.Size = UDim2.new(0.5, -10, 1, -10)
+panel2.Position = UDim2.new(0.5, 5, 0, 5)
+panel2.BackgroundColor3 = Color3.fromRGB(60, 40, 40)
+panel2.Parent = frame
+
+local layout2 = Instance.new("UIListLayout")
+layout2.Padding = UDim.new(0, 4)
+layout2.Parent = panel2
+
+local judul2 = Instance.new("TextLabel")
+judul2.Size = UDim2.new(1, -10, 0, 22)
+judul2.Position = UDim2.new(0, 5, 0, 0)
+judul2.BackgroundTransparency = 1
+judul2.Text = "LINGKARAN 2"
+judul2.TextColor3 = Color3.fromRGB(255, 150, 100)
+judul2.TextSize = 15
+judul2.Font = Enum.Font.SourceSansBold
+judul2.Parent = panel2
+
+local xc2 = buatInput(panel2, "Pusat X", -50, 5)
+local yc2 = buatInput(panel2, "Pusat Z", -125, 5)
+local r2 = buatInput(panel2, "Jari-jari", 15, 1)
+local dTheta2 = buatInput(panel2, "Delta Theta", 0.4, 0.05)
+local ukuran2 = buatInput(panel2, "Ukuran Titik", 1, 0.5)
+
+-- ===== TOMBOL GAMBAR =====
+local tombol = Instance.new("TextButton")
+tombol.Size = UDim2.new(1, -10, 0, 35)
+tombol.Position = UDim2.new(0, 5, 1, -40)
+tombol.Text = "GAMBAR KEDUA LINGKARAN"
+tombol.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+tombol.TextColor3 = Color3.new(1, 1, 1)
+tombol.Font = Enum.Font.SourceSansBold
+tombol.Parent = frame
+
+tombol.MouseButton1Click:Connect(function()
+	local p1xc = tonumber(xc1.Text) or 0
+	local p1yc = tonumber(yc1.Text) or 0
+	local p1r = tonumber(r1.Text) or 15
+	local p1dTheta = tonumber(dTheta1.Text) or 0.2
+	local p1ukuran = tonumber(ukuran1.Text) or 1
+
+	local p2xc = tonumber(xc2.Text) or 0
+	local p2yc = tonumber(yc2.Text) or 0
+	local p2r = tonumber(r2.Text) or 15
+	local p2dTheta = tonumber(dTheta2.Text) or 0.2
+	local p2ukuran = tonumber(ukuran2.Text) or 1
+
+	gambarLingkaran(p1xc, p1yc, p1r, p1dTheta, p1ukuran, "Lingkaran1", BrickColor.new("Bright blue"), BrickColor.new("Cyan"))
+	gambarLingkaran(p2xc, p2yc, p2r, p2dTheta, p2ukuran, "Lingkaran2", BrickColor.new("Bright orange"), BrickColor.new("Neon orange"))
+
+	print("=== KEDUA LINGKARAN SELESAI — SIAP DIBANDINGKAN ===")
+end)
