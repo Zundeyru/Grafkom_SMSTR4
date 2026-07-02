@@ -1,0 +1,190 @@
+local workspaceFile = game:GetService("Workspace").Parabola1
+
+-- Mencari part bernama "Penembak" di Workspace
+local penembak = workspaceFile:WaitForChild("Penembak")
+
+local Billboardtext = workspaceFile.Billboard.BillboardGui
+local Text = Billboardtext:WaitForChild("TextLabel")
+
+local DeltaButton = workspaceFile.Delta.SurfaceGui.TextButton
+local SkalaJarakButton = workspaceFile.Jarak.SurfaceGui.TextButton
+local t1Button = workspaceFile.t1.SurfaceGui.TextButton
+local t2Button = workspaceFile.t2.SurfaceGui.TextButton
+local aButton = workspaceFile.a.SurfaceGui.TextButton
+
+--Naik dan Turun
+local buttonNaik = workspaceFile.Naik.ClickDetector
+local buttonTurun = workspaceFile.Turun.ClickDetector
+
+-- ==========================================
+-- SISTEM CUSTOM INISIALISASI
+-- ==========================================
+
+-- Tabel untuk menyimpan nilai saat ini agar bersifat dinamis
+local nilaiInisialisasi = {
+	a = 0.8,
+	delta = 0.9,
+	t1 = 0,
+	t2 = 10,
+	skalaJarak = 5
+}
+
+-- Tabel untuk menentukan besaran perubahan tiap kali tombol Naik/Turun ditekan
+local stepPerubahan = {
+	a = 0.1,
+	delta = 0.1,
+	t1 = 1,
+	t2 = 1,
+	skalaJarak = 1
+}
+
+-- Menyimpan variabel apa yang sedang dipilih (Default: "a")
+local selectedVariable = "a"
+
+-- Fungsi untuk memperbarui teks pada Billboard
+local function updateBillboardUI()
+	local teks = string.format(
+		"Parabola 1\nSEDANG DIUBAH: [%s]\n\n-- Inisialisasi --\na = %.1f\ndelta = %.1f\nt1 = %d\nt2 = %d\nskalaJarak = %d",
+		string.upper(selectedVariable),
+		nilaiInisialisasi.a,
+		nilaiInisialisasi.delta,
+		nilaiInisialisasi.t1,
+		nilaiInisialisasi.t2,
+		nilaiInisialisasi.skalaJarak
+	)
+	Text.Text = teks
+end
+
+updateBillboardUI()
+
+-- ==========================================
+-- EVENT LISTENER: TOMBOL PEMILIHAN
+-- ==========================================
+
+aButton.MouseButton1Click:Connect(function()
+	selectedVariable = "a"
+	updateBillboardUI()
+end)
+
+DeltaButton.MouseButton1Click:Connect(function()
+	selectedVariable = "delta"
+	updateBillboardUI()
+end)
+
+SkalaJarakButton.MouseButton1Click:Connect(function()
+	selectedVariable = "skalaJarak"
+	updateBillboardUI()
+end)
+
+t1Button.MouseButton1Click:Connect(function()
+	selectedVariable = "t1"
+	updateBillboardUI()
+end)
+
+t2Button.MouseButton1Click:Connect(function()
+	selectedVariable = "t2"
+	updateBillboardUI()
+end)
+
+-- ==========================================
+-- EVENT LISTENER: TOMBOL NAIK & TURUN
+-- ==========================================
+
+buttonNaik.MouseClick:Connect(function()
+	nilaiInisialisasi[selectedVariable] = nilaiInisialisasi[selectedVariable] + stepPerubahan[selectedVariable]
+	updateBillboardUI()
+end)
+
+buttonTurun.MouseClick:Connect(function()
+	nilaiInisialisasi[selectedVariable] = nilaiInisialisasi[selectedVariable] - stepPerubahan[selectedVariable]
+	updateBillboardUI()
+end)
+
+-- ==========================================
+-- LOGIKA PENEMBAKAN
+-- ==========================================
+
+local function tembakParabolaPelanDanJauh()
+	local originPosition = penembak.Position
+	local forwardDirection = penembak.CFrame.LookVector 
+
+	local a = nilaiInisialisasi.a
+	local delta = nilaiInisialisasi.delta
+	local t1 = nilaiInisialisasi.t1
+	local t2 = nilaiInisialisasi.t2
+	local skalaJarak = nilaiInisialisasi.skalaJarak
+
+	local bullet = Instance.new("Part")
+	bullet.Size = Vector3.new(1.2, 1.2, 1.2)
+	bullet.Shape = Enum.PartType.Ball
+	bullet.Color = Color3.fromRGB(255, 0, 0)
+	bullet.Material = Enum.Material.Neon
+	bullet.Anchored = true
+	bullet.CanCollide = false
+	bullet.Parent = workspace      
+
+	local function createTrailPoint(position)
+		local point = Instance.new("Part")
+		point.Size = Vector3.new(0.5, 0.5, 0.5)
+		point.Shape = Enum.PartType.Ball
+		point.Color = Color3.fromRGB(255, 255, 0) -- Titik berwarna Kuning
+		point.Material = Enum.Material.Neon
+		point.Anchored = true
+		point.CanCollide = false
+		point.Position = position
+		point.Parent = workspace
+
+		game:GetService("Debris"):AddItem(point, 30) 
+	end
+
+	-- FUNGSI BARU: Untuk membuat garis
+	local function createLine(pos1, pos2)
+		local distance = (pos2 - pos1).Magnitude
+		local line = Instance.new("Part")
+		line.Size = Vector3.new(0.15, 0.15, distance)
+		line.Color = Color3.fromRGB(0, 255, 255) -- Warna Cyan agar beda dari titik kuningnya
+		line.Material = Enum.Material.Neon
+		line.Anchored = true
+		line.CanCollide = false
+		line.CFrame = CFrame.lookAt(pos1:Lerp(pos2, 0.5), pos2)
+		line.Parent = workspace
+
+		game:GetService("Debris"):AddItem(line, 30)
+	end
+
+	-- Variabel penyimpan posisi sebelumnya
+	local previousPosition = nil
+
+	-- 2. ITERASI & KALKULASI
+	for t = t1, t2, delta do
+		local gerakMaju = 0 + (skalaJarak * 2 * a * t) 
+		local gerakJatuh = 0 - (a * t^2) 
+
+		local kalkulasiMaju = forwardDirection * gerakMaju
+		local kalkulasiJatuh = Vector3.new(0, gerakJatuh, 0)
+		local currentPosition = originPosition + kalkulasiMaju + kalkulasiJatuh
+
+		bullet.Position = currentPosition
+		createTrailPoint(currentPosition)
+
+		-- Tarik garis jika posisi sebelumnya sudah ada
+		if previousPosition then
+			createLine(previousPosition, currentPosition)
+		end
+
+		-- Perbarui posisi untuk siklus berikutnya
+		previousPosition = currentPosition
+
+		task.wait(0.3)
+	end
+
+	bullet:Destroy()
+end
+
+-- Loop utama di dalam task.spawn
+task.spawn(function()
+	while true do
+		tembakParabolaPelanDanJauh()
+		task.wait(2)
+	end
+end)
