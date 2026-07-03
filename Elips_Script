@@ -1,0 +1,206 @@
+-- =============================================
+-- SISTEM ELIPS PARAMETRIK - 2 ELIPS PERBANDINGAN
+-- Menggunakan DELTA (Δθ) untuk jarak sudut antar titik
+--   delta kecil = titik rapat, elips halus
+--   delta besar = titik jarang, elips kasar (poligon)
+-- =============================================
+
+local blokElips    = script.Parent
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- RemoteEvent dari UI
+local generateEvent = ReplicatedStorage:WaitForChild("GenerateElipsEvent")
+local resetEvent    = ReplicatedStorage:WaitForChild("RemoteReset", 10)
+
+-- Referensi BlokElips2 (opsional, mungkin sudah dihapus)
+local blokElips2 = workspace:FindFirstChild("BlokElips2")
+
+-- Folder untuk menyimpan partikel elips
+local folderElips1 = Instance.new("Folder")
+folderElips1.Name = "Elips1"
+folderElips1.Parent = workspace
+
+local folderElips2 = Instance.new("Folder")
+folderElips2.Name = "Elips2"
+folderElips2.Parent = workspace
+
+-- =============================================
+-- WARNA
+-- =============================================
+local WARNA_TITIK_1    = BrickColor.new("Cyan")
+local WARNA_GARIS_1    = BrickColor.new("Cyan")
+local WARNA_TITIK_2    = BrickColor.new("Lime green")
+local WARNA_GARIS_2    = BrickColor.new("Lime green")
+local WARNA_TITIK_AWAL = BrickColor.new("Really red")
+
+-- =============================================
+-- FUNGSI : Buat garis penghubung antar 2 titik
+-- =============================================
+local function buatGaris(p1, p2, warna, parent)
+	local distance = (p2 - p1).Magnitude
+	if distance < 0.01 then return nil end
+
+	local midpoint = (p1 + p2) / 2
+	local line = Instance.new("Part")
+	line.Name        = "Garis"
+	line.Size        = Vector3.new(0.15, 0.15, distance)
+	line.CFrame      = CFrame.lookAt(midpoint, p2)
+	line.BrickColor  = warna
+	line.Material    = Enum.Material.Neon
+	line.Anchored    = true
+	line.CanCollide  = false
+	line.CastShadow  = false
+	line.Parent      = parent
+
+	return line
+end
+
+-- =============================================
+-- FUNGSI UTAMA : Generate 1 elips parametrik dengan DELTA
+--   x(t) = xc + a · cos(t)
+--   z(t) = zc + b · sin(t)
+--   θ_i = (i-1) × delta
+--   jumlah titik = floor(2π / delta)
+-- =============================================
+local function generateElips(pusat, a, b, delta, warnaTitik, warnaGaris, folder)
+
+	-- Hapus elips lama
+	for _, child in ipairs(folder:GetChildren()) do
+		child.Parent = nil
+	end
+
+	-- Validasi parameter
+	a = math.max(1, a)
+	b = math.max(1, b)
+	delta = math.max(0.01, delta)  -- Minimal 0.01 radian
+
+	-- Hitung jumlah titik dari delta
+	local jumlahTitik = math.floor((2 * math.pi) / delta)
+
+	-- Hitung semua posisi titik
+	local titikList = {}
+	for i = 1, jumlahTitik do
+		local theta = (i - 1) * delta
+		local x = pusat.X + a * math.cos(theta)
+		local y = pusat.Y
+		local z = pusat.Z + b * math.sin(theta)
+		table.insert(titikList, Vector3.new(x, y, z))
+	end
+
+	-- =============================================
+	-- BUAT TITIK + GARIS + ANIMASI
+	-- =============================================
+	for i, targetPos in ipairs(titikList) do
+
+		-- Buat partikel titik
+		local partikel = Instance.new("Part")
+		partikel.Name        = "Titik_" .. i
+		partikel.Shape       = Enum.PartType.Ball
+		partikel.Material    = Enum.Material.Neon
+		partikel.Anchored    = true
+		partikel.CanCollide  = false
+		partikel.CastShadow  = false
+		partikel.Position    = pusat  -- Mulai dari pusat
+
+		-- Titik awal/akhir (i=1) berbeda warna & lebih besar
+		if i == 1 then
+			partikel.Size       = Vector3.new(0.8, 0.8, 0.8)
+			partikel.BrickColor = WARNA_TITIK_AWAL
+
+			-- Label "Titik Awal/Akhir"
+			local billboard = Instance.new("BillboardGui")
+			billboard.Name         = "Label"
+			billboard.Size         = UDim2.new(0, 120, 0, 30)
+			billboard.StudsOffset  = Vector3.new(0, 2, 0)
+			billboard.AlwaysOnTop  = true
+			billboard.Parent       = partikel
+
+			local textLabel = Instance.new("TextLabel")
+			textLabel.Size               = UDim2.new(1, 0, 1, 0)
+			textLabel.BackgroundTransparency = 1
+			textLabel.Text               = "Awal/Akhir"
+			textLabel.TextColor3         = Color3.new(1, 0, 0)
+			textLabel.TextStrokeTransparency = 0.5
+			textLabel.TextScaled         = true
+			textLabel.Font               = Enum.Font.GothamBold
+			textLabel.Parent             = billboard
+		else
+			partikel.Size       = Vector3.new(0.5, 0.5, 0.5)
+			partikel.BrickColor = warnaTitik
+		end
+
+		partikel.Parent = folder
+
+		-- Animasi: bergerak dari pusat ke posisi elips
+		local tweenGerak = TweenService:Create(partikel,
+			TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Position = targetPos }
+		)
+		tweenGerak:Play()
+
+		-- Buat garis ke titik berikutnya (termasuk titik terakhir ke titik pertama)
+		local nextIndex = (i % jumlahTitik) + 1
+		local nextPos = titikList[nextIndex]
+
+		-- Garis muncul setelah titik sampai di posisi
+		tweenGerak.Completed:Connect(function()
+			buatGaris(targetPos, nextPos, warnaGaris, folder)
+		end)
+
+		task.wait(0.03)
+	end
+end
+
+-- =============================================
+-- LISTENER : Terima parameter dari UI
+-- =============================================
+generateEvent.OnServerEvent:Connect(function(player, params)
+	local a1 = tonumber(params.a1) or 12
+	local b1 = tonumber(params.b1) or 6
+	local d1 = tonumber(params.d1) or 0.3
+
+	local a2 = tonumber(params.a2) or 8
+	local b2 = tonumber(params.b2) or 4
+	local d2 = tonumber(params.d2) or 0.3
+
+	-- Hilangkan BlokElips
+	blokElips.Transparency = 1
+	blokElips.CanCollide = false
+	if blokElips2 then
+		blokElips2.Transparency = 1
+		blokElips2.CanCollide = false
+	end
+
+	-- Generate kedua elips, Elips 2 dinaikkan sedikit di atas supaya tidak nabrak
+	local pusat = blokElips.Position
+	generateElips(pusat, a1, b1, d1, WARNA_TITIK_1, WARNA_GARIS_1, folderElips1)
+	generateElips(Vector3.new(pusat.X, pusat.Y + 1, pusat.Z), a2, b2, d2, WARNA_TITIK_2, WARNA_GARIS_2, folderElips2)
+end)
+
+print("✅ Sistem Elips Parametrik (Delta) siap!")
+print("📐 Rumus: x(t) = xc + a·cos(t), z(t) = zc + b·sin(t)")
+print("📏 delta = jarak sudut antar titik (radian)")
+print("   delta kecil = titik rapat & elips halus")
+print("   delta besar = titik jarang & elips kasar (poligon)")
+
+-- =============================================
+-- LISTENER : Reset elips
+-- =============================================
+if resetEvent then
+	resetEvent.OnServerEvent:Connect(function(player)
+		for _, child in ipairs(folderElips1:GetChildren()) do
+			child.Parent = nil
+		end
+		for _, child in ipairs(folderElips2:GetChildren()) do
+			child.Parent = nil
+		end
+		blokElips.Transparency = 0
+		blokElips.CanCollide = true
+		if blokElips2 then
+			blokElips2.Transparency = 0
+			blokElips2.CanCollide = true
+		end
+		print("🔄 Reset Elips diterima")
+	end)
+end
