@@ -1,0 +1,57 @@
+-- LauncherScript di dalam BlokA
+local blokA = script.Parent
+local blokB = workspace:WaitForChild("BlokB")
+local sudahDitembak = false
+
+blokA.Touched:Connect(function(hit)
+	if sudahDitembak then return end
+	if not hit.Parent:FindFirstChild("Humanoid") then return end
+
+	sudahDitembak = true
+	print("🚀 Menembak ke BlokB...")
+
+	local peluru = Instance.new("Part")
+	peluru.Name       = "Peluru"
+	peluru.Size       = Vector3.new(0.6, 0.6, 0.6)
+	peluru.Shape      = Enum.PartType.Ball
+	peluru.BrickColor = BrickColor.new("Bright yellow")
+	peluru.Material   = Enum.Material.Neon
+	peluru.Anchored   = false
+	peluru.CastShadow = false
+	peluru.CanCollide = false
+	peluru.Position   = blokA.Position + Vector3.new(0, 2, 0)
+	peluru.Parent     = workspace
+
+	local arah = (blokB.Position - peluru.Position).Unit
+	local bv = Instance.new("BodyVelocity")
+	bv.Velocity  = arah * 60
+	bv.MaxForce  = Vector3.new(1e5, 1e5, 1e5)
+	bv.Parent    = peluru
+
+	local sudahLedak = false
+	task.spawn(function()
+		while peluru and peluru.Parent and not sudahLedak do
+			local jarak = (peluru.Position - blokB.Position).Magnitude
+			if jarak < 5 then
+				sudahLedak = true
+				print("💥 Peluru sampai di BlokB!")
+				local posLedak = peluru.Position
+				peluru:Destroy()
+
+				local posVal = Instance.new("StringValue")
+				posVal.Name  = "TriggerLedak"
+				posVal.Value = posLedak.X..","..posLedak.Y..","..posLedak.Z
+				posVal.Parent = blokB
+				game:GetService("Debris"):AddItem(posVal, 1)
+			end
+			task.wait(0.05)
+		end
+	end)
+
+	task.delay(8, function()
+		sudahDitembak = false
+		if peluru and peluru.Parent then peluru:Destroy() end
+	end)
+end)
+
+print("✅ BlokA Launcher siap!")
