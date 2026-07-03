@@ -1,0 +1,242 @@
+-- =============================================
+-- SISTEM HIPERBOLA PARAMETRIK - 2 HIPERBOLA PERBANDINGAN
+-- Menggunakan DELTA (Δθ) untuk jarak sudut antar titik
+--   x = xc + a · sec(θ)
+--   z = zc + b · tan(θ)
+-- 2 cabang per hiperbola, garis antar titik
+-- =============================================
+
+local blokB         = script.Parent
+local TweenService  = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- RemoteEvents
+local remoteTembak = ReplicatedStorage:WaitForChild("RemoteTembak", 10)
+local remoteReset  = ReplicatedStorage:WaitForChild("RemoteReset", 10)
+
+-- Folder untuk 2 hiperbola
+local folderHiperbola1 = Instance.new("Folder")
+folderHiperbola1.Name = "Hiperbola1"
+folderHiperbola1.Parent = workspace
+
+local folderHiperbola2 = Instance.new("Folder")
+folderHiperbola2.Name = "Hiperbola2"
+folderHiperbola2.Parent = workspace
+
+-- =============================================
+-- WARNA
+-- =============================================
+local WARNA_TITIK_1    = BrickColor.new("Cyan")
+local WARNA_GARIS_1    = BrickColor.new("Cyan")
+local WARNA_TITIK_2    = BrickColor.new("New Yeller")
+local WARNA_GARIS_2    = BrickColor.new("New Yeller")
+local WARNA_TITIK_AWAL = BrickColor.new("Really red")
+
+-- =============================================
+-- FUNGSI : Buat garis penghubung antar 2 titik
+-- =============================================
+local function buatGaris(p1, p2, warna, parent)
+	local distance = (p2 - p1).Magnitude
+	if distance < 0.01 then return nil end
+
+	local midpoint = (p1 + p2) / 2
+	local line = Instance.new("Part")
+	line.Name        = "Garis"
+	line.Size        = Vector3.new(0.15, 0.15, distance)
+	line.CFrame      = CFrame.lookAt(midpoint, p2)
+	line.BrickColor  = warna
+	line.Material    = Enum.Material.Neon
+	line.Anchored    = true
+	line.CanCollide  = false
+	line.CastShadow  = false
+	line.Parent      = parent
+
+	return line
+end
+
+-- =============================================
+-- FUNGSI UTAMA : Generate 1 hiperbola dengan DELTA
+--   2 cabang: kanan (-π/2 → π/2) dan kiri (π/2 → 3π/2)
+--   Titik + garis penghubung + animasi
+-- =============================================
+local function generateHiperbola(pusat, a, b, delta, warnaTitik, warnaGaris, folder)
+
+	-- Hapus hiperbola lama
+	for _, child in ipairs(folder:GetChildren()) do
+		child.Parent = nil
+	end
+
+	-- Validasi parameter
+	a = math.max(1, a)
+	b = math.max(1, b)
+	delta = math.max(0.01, delta)
+
+	local xc = pusat.X
+	local zc = pusat.Z
+	local y  = pusat.Y
+
+	-- =============================================
+	-- Kumpulkan titik untuk 2 cabang
+	-- =============================================
+	local cabangKanan = {}
+	local cabangKiri  = {}
+
+	-- Cabang kanan: θ dari -π/2+delta ke π/2-delta
+	local theta = -math.pi/2 + delta
+	while theta < math.pi/2 - delta do
+		local x = xc + a * (1 / math.cos(theta))
+		local z = zc + b * math.tan(theta)
+		table.insert(cabangKanan, Vector3.new(x, y, z))
+		theta = theta + delta
+	end
+
+	-- Cabang kiri: θ dari π/2+delta ke 3π/2-delta
+	theta = math.pi/2 + delta
+	while theta < 3 * math.pi/2 - delta do
+		local x = xc + a * (1 / math.cos(theta))
+		local z = zc + b * math.tan(theta)
+		table.insert(cabangKiri, Vector3.new(x, y, z))
+		theta = theta + delta
+	end
+
+	-- =============================================
+	-- BUAT TITIK + GARIS + ANIMASI (cabang kanan)
+	-- =============================================
+	for i, targetPos in ipairs(cabangKanan) do
+		local partikel = Instance.new("Part")
+		partikel.Name        = "Kanan_Titik_" .. i
+		partikel.Shape       = Enum.PartType.Ball
+		partikel.Material    = Enum.Material.Neon
+		partikel.Anchored    = true
+		partikel.CanCollide  = false
+		partikel.CastShadow  = false
+		partikel.Position    = pusat
+
+		if i == 1 then
+			partikel.Size       = Vector3.new(0.8, 0.8, 0.8)
+			partikel.BrickColor = WARNA_TITIK_AWAL
+
+			local billboard = Instance.new("BillboardGui")
+			billboard.Name        = "Label"
+			billboard.Size        = UDim2.new(0, 100, 0, 25)
+			billboard.StudsOffset = Vector3.new(0, 2, 0)
+			billboard.AlwaysOnTop = true
+			billboard.Parent      = partikel
+
+			local tl = Instance.new("TextLabel")
+			tl.Size                = UDim2.new(1, 0, 1, 0)
+			tl.BackgroundTransparency = 1
+			tl.Text                = "Awal"
+			tl.TextColor3          = Color3.new(1, 0, 0)
+			tl.TextScaled          = true
+			tl.Font                = Enum.Font.GothamBold
+			tl.Parent              = billboard
+		else
+			partikel.Size       = Vector3.new(0.5, 0.5, 0.5)
+			partikel.BrickColor = warnaTitik
+		end
+
+		partikel.Parent = folder
+
+		local tween = TweenService:Create(partikel,
+			TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Position = targetPos }
+		)
+		tween:Play()
+
+		-- Garis ke titik berikutnya dalam cabang yang sama
+		if i < #cabangKanan then
+			tween.Completed:Connect(function()
+				buatGaris(targetPos, cabangKanan[i + 1], warnaGaris, folder)
+			end)
+		end
+
+		task.wait(0.03)
+	end
+
+	-- =============================================
+	-- BUAT TITIK + GARIS + ANIMASI (cabang kiri)
+	-- =============================================
+	for i, targetPos in ipairs(cabangKiri) do
+		local partikel = Instance.new("Part")
+		partikel.Name        = "Kiri_Titik_" .. i
+		partikel.Shape       = Enum.PartType.Ball
+		partikel.Material    = Enum.Material.Neon
+		partikel.Anchored    = true
+		partikel.CanCollide  = false
+		partikel.CastShadow  = false
+		partikel.Position    = pusat
+
+		if i == 1 then
+			partikel.Size       = Vector3.new(0.8, 0.8, 0.8)
+			partikel.BrickColor = WARNA_TITIK_AWAL
+		else
+			partikel.Size       = Vector3.new(0.5, 0.5, 0.5)
+			partikel.BrickColor = warnaTitik
+		end
+
+		partikel.Parent = folder
+
+		local tween = TweenService:Create(partikel,
+			TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Position = targetPos }
+		)
+		tween:Play()
+
+		-- Garis ke titik berikutnya dalam cabang yang sama
+		if i < #cabangKiri then
+			tween.Completed:Connect(function()
+				buatGaris(targetPos, cabangKiri[i + 1], warnaGaris, folder)
+			end)
+		end
+
+		task.wait(0.03)
+	end
+end
+
+-- =============================================
+-- LISTENER : Terima parameter dari UI (2 hiperbola)
+-- =============================================
+if remoteTembak then
+	remoteTembak.OnServerEvent:Connect(function(player, params)
+		local a1 = tonumber(params.a1) or 8
+		local b1 = tonumber(params.b1) or 5
+		local d1 = tonumber(params.d1) or 0.06
+
+		local a2 = tonumber(params.a2) or 5
+		local b2 = tonumber(params.b2) or 3
+		local d2 = tonumber(params.d2) or 0.06
+
+		print(string.format("🎯 Generate | H1: a=%.1f b=%.1f d=%.3f | H2: a=%.1f b=%.1f d=%.3f", a1, b1, d1, a2, b2, d2))
+
+		-- Hilangkan BlokB
+		blokB.Transparency = 1
+		blokB.CanCollide = false
+
+		-- Generate kedua hiperbola, Hiperbola 2 dinaikkan 1 studs supaya tidak nabrak
+		local pusat = blokB.Position
+		generateHiperbola(pusat, a1, b1, d1, WARNA_TITIK_1, WARNA_GARIS_1, folderHiperbola1)
+		generateHiperbola(Vector3.new(pusat.X, pusat.Y + 1, pusat.Z), a2, b2, d2, WARNA_TITIK_2, WARNA_GARIS_2, folderHiperbola2)
+	end)
+end
+
+-- =============================================
+-- LISTENER : Reset
+-- =============================================
+if remoteReset then
+	remoteReset.OnServerEvent:Connect(function(player)
+		print("🔄 Reset hiperbola oleh:", player.Name)
+		for _, folder in ipairs({folderHiperbola1, folderHiperbola2}) do
+			for _, child in ipairs(folder:GetChildren()) do
+				child.Parent = nil
+			end
+		end
+		-- Tampilkan kembali BlokB
+		blokB.Transparency = 0
+		blokB.CanCollide = true
+	end)
+end
+
+print("✅ Sistem Hiperbola Parametrik (2 Hiperbola + Garis) siap!")
+print("📐 Rumus: x = xc + a·sec(θ), z = zc + b·tan(θ)")
+print("📏 delta = jarak sudut antar titik (radian)")
